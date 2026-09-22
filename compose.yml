@@ -1,0 +1,9 @@
+services:
+  icloud-mail-filter:
+    build: .
+    container_name: icloud-mail-filter
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data:/data
