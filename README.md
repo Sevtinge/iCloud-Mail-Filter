@@ -11,6 +11,7 @@ A Dockerized service that periodically scans an iCloud mailbox over IMAP and mov
 - Moves matched messages using IMAP `COPY`, `STORE`, and `EXPUNGE`.
 - Limits the number of messages processed in each run.
 - Persists first-run state in `/data/state.json`.
+- Fetches message headers before bodies to reduce memory use and avoid loading unnecessary message content.
 
 ## Requirements
 

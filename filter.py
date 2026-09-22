@@ -61,15 +61,13 @@ def html_to_text(s):
     return unescape(s)
 
 
-def message_text(msg: Message):
-    pieces = []
-    pieces.append(decode_header_text(msg.get("Subject", "")))
+def iter_message_text(msg: Message):
+    """Yield searchable message text one piece at a time to limit memory use."""
+    subject = decode_header_text(msg.get("Subject", ""))
+    if subject:
+        yield subject
 
-    if msg.is_multipart():
-        parts = msg.walk()
-    else:
-        parts = [msg]
-
+    parts = msg.walk() if msg.is_multipart() else [msg]
     for part in parts:
         if part.get_content_maintype() == "multipart":
             continue
@@ -88,11 +86,22 @@ def message_text(msg: Message):
                 text = payload.decode(charset, errors="replace")
             if ctype == "text/html":
                 text = html_to_text(text)
-            pieces.append(text)
+            yield text
         except Exception as e:
             log(f"[WARN] Failed to decode {ctype}: {e}")
 
-    return "\n".join(pieces)
+
+def message_text(msg: Message):
+    """Return all searchable text; kept for compatibility with the original helper."""
+    return "\n".join(iter_message_text(msg))
+
+
+def message_contains_text(msg: Message, needle):
+    """Return as soon as a matching text part is found."""
+    if needle is None:
+        return True
+    needle = needle.casefold()
+    return any(needle in text.casefold() for text in iter_message_text(msg))
 
 
 def message_sender(msg: Message):
@@ -104,12 +113,10 @@ def message_sender(msg: Message):
 
 def message_matches(msg: Message, match_text=MATCH_TEXT, match_from=MATCH_FROM):
     """Apply enabled filters. A None filter imposes no restriction."""
-    if match_text is not None and match_text.casefold() not in message_text(msg).casefold():
-        return False
+    # A null filter is disabled, not a failed match.
     if match_from is not None and match_from.casefold() not in message_sender(msg).casefold():
         return False
-    return True
-
+    return message_contains_text(msg, match_text)
 
 def load_state():
     try:
@@ -150,6 +157,20 @@ def connect():
     imap.login(USER, PASSWORD)
     return imap
 
+def fetch_message(imap, uid, section=None):
+    """Fetch and parse one message section, returning None on failure."""
+    body = "(BODY.PEEK[])" if section is None else f"(BODY.PEEK[{section}])"
+    status, data = imap.uid("FETCH", uid, body)
+    if status != "OK" or not data:
+        return None
+
+    chunks = [item[1] for item in data if isinstance(item, tuple) and len(item) > 1]
+    if not chunks:
+        return None
+    return email.message_from_bytes(b"".join(chunks))
+
+
+
 
 def process_once(state):
     imap = None
@@ -187,18 +208,23 @@ def process_once(state):
         matched = 0
         for uid in uids:
             try:
-                status, data = imap.uid("FETCH", uid, "(BODY.PEEK[])")
-                if status != "OK" or not data:
+                # Read headers first so sender filtering can reject messages without
+                # loading their bodies or attachments into memory.
+                header_msg = fetch_message(imap, uid, "HEADER")
+                if header_msg is None:
+                    continue
+                if not message_matches(header_msg, None, MATCH_FROM):
                     continue
 
-                raw = b""
-                for item in data:
-                    if isinstance(item, tuple):
-                        raw += item[1]
-
-                msg = email.message_from_bytes(raw)
-                if not message_matches(msg, MATCH_TEXT, MATCH_FROM):
-                    continue
+                # A null text filter is disabled. If the subject does not match,
+                # fetch the full message only when a body search is actually needed.
+                if MATCH_TEXT is None or message_contains_text(header_msg, MATCH_TEXT):
+                    msg = header_msg
+                else:
+                    del header_msg
+                    msg = fetch_message(imap, uid)
+                    if msg is None or not message_matches(msg, MATCH_TEXT, None):
+                        continue
 
                 status, _ = imap.uid("COPY", uid, TARGET_FOLDER)
                 if status != "OK":
