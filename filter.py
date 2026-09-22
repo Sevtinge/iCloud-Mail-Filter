@@ -111,6 +111,20 @@ def message_sender(msg: Message):
     return "\n".join(value for value in (raw_from, display_name, address) if value)
 
 
+def one_line(value):
+    """Normalize header text before writing it to a single log line."""
+    return " ".join(value.replace("\r", " ").replace("\n", " ").split())
+
+
+def message_summary(msg: Message):
+    """Return a compact '<sender>subject' label for log messages."""
+    raw_from = decode_header_text(msg.get("From", ""))
+    display_name, address = parseaddr(raw_from)
+    sender = one_line(address or display_name or raw_from) or "unknown sender"
+    subject = one_line(decode_header_text(msg.get("Subject", ""))) or "(no subject)"
+    return f"<{sender}>{subject}"
+
+
 def message_matches(msg: Message, match_text=MATCH_TEXT, match_from=MATCH_FROM):
     """Apply enabled filters. A None filter imposes no restriction."""
     # A null filter is disabled, not a failed match.
@@ -237,7 +251,7 @@ def process_once(state):
                     continue
 
                 matched += 1
-                log(f"[INFO] Matched and moved UID {uid.decode()}")
+                log(f"[INFO] Matched and moved {message_summary(msg)} (UID {uid.decode(errors='replace')})")
 
             except Exception as e:
                 log(f"[WARN] Failed to process UID {uid!r}: {e}")
