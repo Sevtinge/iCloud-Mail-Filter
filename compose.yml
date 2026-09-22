@@ -2,7 +2,7 @@ services:
   icloud-mail-filter:
     build: .
     container_name: icloud-mail-filter
-    restart: unless-stopped
+    restart: ${RESTART_POLICY:-unless-stopped}
     env_file:
       - .env
     volumes:

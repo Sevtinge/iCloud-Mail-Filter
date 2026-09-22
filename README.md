@@ -44,7 +44,11 @@ CHECK_INTERVAL=300
 FIRST_RUN_HOURS=24
 MAX_PER_RUN=50
 IMAP_TIMEOUT=30
+
+# Docker restart policy; defaults to unless-stopped
+RESTART_POLICY=unless-stopped
 ```
+`RESTART_POLICY` controls the Docker container restart policy. The default is `unless-stopped`. On fnOS, Docker or Container Manager autostart must also be enabled in the fnOS user interface.
 
 ### Filter behavior
 
