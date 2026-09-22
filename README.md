@@ -153,3 +153,6 @@ docker compose down
 - Use an Apple app-specific password instead of your primary Apple ID password.
 - If the app-specific password has been exposed, revoke it in your Apple account and create a new one.
 
+## License
+
+This project is licensed under the [MIT License](LICENSE).
