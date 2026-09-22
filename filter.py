@@ -130,7 +130,7 @@ def save_state(state):
 
 
 def ensure_folder(imap):
-    status, data = imap.list("", f'"{TARGET_FOLDER}"')
+    status, data = imap.list('""', f'"{TARGET_FOLDER}"')
     if status == "OK" and data and any(x for x in data if x):
         return True
     status, _ = imap.create(TARGET_FOLDER)
@@ -138,7 +138,7 @@ def ensure_folder(imap):
         log(f"[INFO] Created folder: {TARGET_FOLDER}")
         return True
     # Another process/server may have created it between LIST and CREATE.
-    status, data = imap.list("", f'"{TARGET_FOLDER}"')
+    status, data = imap.list('""', f'"{TARGET_FOLDER}"')
     if status == "OK" and data and any(x for x in data if x):
         return True
     log(f"[ERROR] Cannot create target folder: {TARGET_FOLDER}")
@@ -197,7 +197,7 @@ def process_once(state):
                         raw += item[1]
 
                 msg = email.message_from_bytes(raw)
-                if not message_matches(msg):
+                if not message_matches(msg, MATCH_TEXT, MATCH_FROM):
                     continue
 
                 status, _ = imap.uid("COPY", uid, TARGET_FOLDER)
@@ -261,5 +261,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
