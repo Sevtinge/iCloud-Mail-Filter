@@ -52,7 +52,7 @@ RESTART_POLICY=unless-stopped
 
 ### Filter behavior
 
-`MATCH_TEXT` is matched case-insensitively against the subject, plain-text body, and converted HTML body.
+`MATCH_TEXT` is matched case-insensitively against the subject, plain-text body, and converted HTML body. Whitespace is ignored during text matching, so HTML tags such as `<strong>` and quoted-printable line wrapping do not prevent a match.
 
 `MATCH_FROM` is matched case-insensitively against the decoded `From` header, display name, and email address. `MATCH_SENDER` is also supported as an alias, but `MATCH_FROM` takes precedence when both are set.
 

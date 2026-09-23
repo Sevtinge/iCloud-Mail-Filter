@@ -96,12 +96,17 @@ def message_text(msg: Message):
     return "\n".join(iter_message_text(msg))
 
 
+def normalize_match_text(value):
+    """Normalize case and whitespace introduced by HTML formatting or line wrapping."""
+    return re.sub(r"\s+", "", value).casefold()
+
+
 def message_contains_text(msg: Message, needle):
     """Return as soon as a matching text part is found."""
     if needle is None:
         return True
-    needle = needle.casefold()
-    return any(needle in text.casefold() for text in iter_message_text(msg))
+    needle = normalize_match_text(needle)
+    return any(needle in normalize_match_text(text) for text in iter_message_text(msg))
 
 
 def message_sender(msg: Message):
@@ -220,14 +225,19 @@ def process_once(state):
         log(f"[INFO] Candidates this run: {len(uids)}")
 
         matched = 0
+        sender_skipped = 0
+        text_skipped = 0
+        fetch_failed = 0
         for uid in uids:
             try:
                 # Read headers first so sender filtering can reject messages without
                 # loading their bodies or attachments into memory.
                 header_msg = fetch_message(imap, uid, "HEADER")
                 if header_msg is None:
+                    fetch_failed += 1
                     continue
                 if not message_matches(header_msg, None, MATCH_FROM):
+                    sender_skipped += 1
                     continue
 
                 # A null text filter is disabled. If the subject does not match,
@@ -237,7 +247,11 @@ def process_once(state):
                 else:
                     del header_msg
                     msg = fetch_message(imap, uid)
-                    if msg is None or not message_matches(msg, MATCH_TEXT, None):
+                    if msg is None:
+                        fetch_failed += 1
+                        continue
+                    if not message_matches(msg, MATCH_TEXT, None):
+                        text_skipped += 1
                         continue
 
                 status, _ = imap.uid("COPY", uid, TARGET_FOLDER)
@@ -255,6 +269,12 @@ def process_once(state):
 
             except Exception as e:
                 log(f"[WARN] Failed to process UID {uid!r}: {e}")
+
+        log(
+            f"[INFO] Filter results: moved={matched}, "
+            f"sender_skipped={sender_skipped}, text_skipped={text_skipped}, "
+            f"fetch_failed={fetch_failed}"
+        )
 
         # Actually remove messages marked \Deleted.
         if matched:
